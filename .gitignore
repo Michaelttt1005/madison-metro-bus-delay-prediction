@@ -1,0 +1,30 @@
+# Python environments and tooling
+.venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.coverage
+
+# Local data: retain the folder documentation, ignore acquired/generated data
+data/raw/*
+data/interim/*
+data/processed/*
+!data/README.md
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+!data/raw/README.md
+!data/interim/README.md
+!data/processed/README.md
+data/manifest.csv
+
+# Generated analysis outputs
+reports/figures/*
+!reports/figures/.gitkeep
+
+# Local secrets and editor state
+.env
+.env.*
+.vscode/
+
