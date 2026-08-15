@@ -67,10 +67,15 @@ a_stops = a_stops[[
 ]].copy()
 
 junction_stop_data = a_stop_times.merge(a_stops, on="stop_id", how="left")
-# with ZipFile(gtfs_zip) as archive:
-#     with archive.open("calendar.txt") as file:
-#         calendar = pd.read_csv(file, dtype = "string")
-# with ZipFile(gtfs_zip) as archive:
-#     with archive.open("calendar_dates.txt") as file:
-#         calendar_dates = pd.read_csv(file, dtype = "string")
+stops_count = junction_stop_data.groupby(["stop_id", "stop_name"])["trip_id"].nunique().reset_index(name="trip_count").sort_values("trip_count", ascending=False)
+# print(stops_count.head(20))
+target_stops = stops_count.loc[stops_count["stop_name"].isin(["Shorewood", "Blair", "Eau Claire"])].copy()
+print(target_stops.head(20))
+
+with ZipFile(gtfs_zip) as archive:
+    with archive.open("calendar.txt") as file:
+        calendar = pd.read_csv(file, dtype = "string")
+with ZipFile(gtfs_zip) as archive:
+    with archive.open("calendar_dates.txt") as file:
+        calendar_dates = pd.read_csv(file, dtype = "string")
 
