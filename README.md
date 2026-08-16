@@ -1,6 +1,6 @@
 # Madison Metro Bus Delay Prediction
 
-> Folder name follows the requested local name: `Medicine Bus Delay Prediction`.
+> Local folder name: `Madison Bus Delay Prediction`.
 
 An independent, data-centric machine-learning study of short-horizon arrival-delay prediction for Madison Metro Rapid Route A. The first milestone is deliberately narrow: predict the arrival deviation at **Capitol Square Eastbound**, ten minutes before a scheduled arrival.
 
@@ -13,7 +13,7 @@ The detailed study definition is in [research_question.md](research_question.md)
 ## Project layout
 
 ```text
-Medicine Bus Delay Prediction/
+Madison Bus Delay Prediction/
 ├── data/                 # Data already acquired and placed locally; not committed to Git
 │   ├── raw/              # Original GTFS, GTFS-RT, and weather files
 │   ├── interim/          # Cleaned intermediate tables

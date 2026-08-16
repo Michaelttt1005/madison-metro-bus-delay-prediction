@@ -2,7 +2,7 @@ from pathlib import Path
 from zipfile import ZipFile
 import pandas as pd
 
-project = Path(r"D:\Michael\Interesting Project\Medicine Bus Delay Prediction")
+project = Path(r"D:\Michael\Interesting Project\Madison Bus Delay Prediction")
 gtfs_zip = project / r"data/raw/gtfs/mmt_gtfs_2026-05-10_to_2026-08-15.zip"
 
 #route id
