@@ -91,6 +91,7 @@ added_services_id_1 = date_exceptions_1.loc[date_exceptions_1["exception_type"] 
 removed_services_id_1 = date_exceptions_1.loc[date_exceptions_1["exception_type"] == "2", "service_id"].tolist()
 active_services_id_1 = active_services_1["service_id"].tolist()
 final_active_services_id_1 = list(set(active_services_id_1 + added_services_id_1) - set(removed_services_id_1))
+active_junctions_1 = junctions.loc[junctions["service_id"].isin(final_active_services_id_1)].copy()
 
 date_2 = "20260811"
 day_name_2 = pd.Timestamp(date_2).day_name().lower()
@@ -100,7 +101,39 @@ added_services_id_2 = date_exceptions_2.loc[date_exceptions_2["exception_type"] 
 removed_services_id_2 = date_exceptions_2.loc[date_exceptions_2["exception_type"] == "2", "service_id"].tolist()
 active_services_id_2 = active_services_2["service_id"].tolist()
 final_active_services_id_2 = list(set(active_services_id_2 + added_services_id_2) - set(removed_services_id_2))
+active_junctions_2 = junctions.loc[junctions["service_id"].isin(final_active_services_id_2)].copy()
 
+target_stop_ids = target_stops["stop_id"].tolist()
+target_stop_data = junction_stop_data.loc[junction_stop_data["stop_id"].isin(target_stop_ids)].copy()
+
+scheduled_data1 = target_stop_data.loc[target_stop_data["trip_id"].isin(active_junctions_1["trip_id"])].copy()
+scheduled_data1["service_date"] = date_1
+
+scheduled_data2 = target_stop_data.loc[target_stop_data["trip_id"].isin(active_junctions_2["trip_id"])].copy()
+scheduled_data2["service_date"] = date_2
+
+scheduled_data = pd.concat([scheduled_data1, scheduled_data2], ignore_index=True)
+
+output_path = project / "data" / "interim" / "scheduled_data.csv"
+
+scheduled_data.to_csv(
+    output_path,
+    index=False
+)
+# print(
+#     scheduled_data[
+#         [
+#             "service_date",
+#             "trip_id",
+#             "stop_id",
+#             "stop_name",
+#             "arrival_time",
+#             "stop_sequence"
+#         ]
+#     ].head(30)
+# )
+
+# print(scheduled_data.shape)
 # print(junctions["service_id"].value_counts())
 # print(calendar.columns.tolist())
 # print(calendar.head())
