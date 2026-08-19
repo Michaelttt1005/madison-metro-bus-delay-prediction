@@ -12,7 +12,7 @@ scheduled_data = pd.read_csv(
     dtype={
         "trip_id": "string",
         "stop_id": "string",
-        "service_id": "string",
+        "service_date": "string",
     }
 )
 
@@ -76,6 +76,42 @@ vehicle_positions_1 = con.execute(
     """,
     [str(vehicle_path_1)]
 ).fetchdf()
+
+# print("Scheduled trips:", len(trip_ids_1))
+# print(
+#     "GPS trips:",
+#     vehicle_positions_1["trip_id"].nunique()
+# )
+# print("GPS rows:", len(vehicle_positions_1))
+# print(vehicle_positions_1.head())
+
+vehicle_positions_1["vehicle_time"] = (
+    pd.to_datetime(
+        vehicle_positions_1["timestamp"],
+        unit="s",
+        utc=True
+    )
+    .dt.tz_convert("America/Chicago")
+)
+
+test_trip_id = trip_ids_1[0]
+
+test_trip = vehicle_positions_1.loc[
+    vehicle_positions_1["trip_id"] == test_trip_id
+].copy()
+
+test_trip = test_trip.sort_values("vehicle_time")
+
+print(
+    test_trip.loc[
+        test_trip["vehicle_time"]
+        == pd.Timestamp("2026-08-10 11:24:36", tz="America/Chicago"),
+        [
+            "latitude",
+            "longitude"
+        ]
+    ]
+)
 # print(vehicle_sample.columns.tolist())
 # print(vehicle_sample)
 # print(vehicle_sample.dtypes)
