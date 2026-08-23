@@ -102,15 +102,85 @@ test_trip = vehicle_positions_1.loc[
 
 test_trip = test_trip.sort_values("vehicle_time")
 
-print(
-    test_trip.loc[
-        test_trip["vehicle_time"]
-        == pd.Timestamp("2026-08-10 11:24:36", tz="America/Chicago"),
-        [
-            "latitude",
-            "longitude"
-        ]
+# print(
+#     test_trip.loc[
+#         test_trip["vehicle_time"]
+#         == pd.Timestamp("2026-08-10 11:24:36", tz="America/Chicago"),
+#         [
+#             "vehicle_id",
+#             "latitude",
+#             "longitude",
+#             "fetch_timestamp"
+#         ]
+#     ]
+# )
+
+vehicle_positions_1 = vehicle_positions_1.drop_duplicates(
+    subset=[
+        "trip_id",
+        "vehicle_time",
+        "latitude",
+        "longitude"
     ]
+).copy()
+
+# print(test_trip.shape)
+
+test_schedule = scheduled_data_1.loc[
+    scheduled_data_1["trip_id"] == test_trip_id
+].copy()
+
+# print(
+#     test_schedule[
+#         [
+#             "trip_id",
+#             "stop_id",
+#             "stop_name",
+#             "arrival_time",
+#             "stop_lat",
+#             "stop_lon",
+#             "stop_sequence"
+#         ]
+#     ]
+# )
+
+blair = test_schedule.loc[
+    test_schedule["stop_name"] == "Blair"
+].iloc[0]
+test_schedule["stop_name"] == "Blair"
+
+import numpy as np
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    R = 6371000
+
+    lat1 = np.radians(lat1)
+    lon1 = np.radians(lon1)
+    lat2 = np.radians(lat2)
+    lon2 = np.radians(lon2)
+
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+
+    a = (
+        np.sin(dlat / 2) ** 2
+        + np.cos(lat1)
+        * np.cos(lat2)
+        * np.sin(dlon / 2) ** 2
+    )
+
+    c = 2 * np.arctan2(
+        np.sqrt(a),
+        np.sqrt(1 - a)
+    )
+
+    return R * c
+
+test_trip["distance_to_blair_m"] = haversine_distance(
+    test_trip["latitude"],
+    test_trip["longitude"],
+    float(blair["stop_lat"]),
+    float(blair["stop_lon"])
 )
 # print(vehicle_sample.columns.tolist())
 # print(vehicle_sample)
