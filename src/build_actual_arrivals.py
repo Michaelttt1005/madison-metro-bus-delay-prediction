@@ -1,7 +1,7 @@
 from pathlib import Path
 import pandas as pd
-from zipfile import ZipFile
 import duckdb
+import numpy as np
 
 project = Path(
     r"D:\Michael\Interesting Project\Madison Bus Delay Prediction"
@@ -77,14 +77,6 @@ vehicle_positions_1 = con.execute(
     [str(vehicle_path_1)]
 ).fetchdf()
 
-# print("Scheduled trips:", len(trip_ids_1))
-# print(
-#     "GPS trips:",
-#     vehicle_positions_1["trip_id"].nunique()
-# )
-# print("GPS rows:", len(vehicle_positions_1))
-# print(vehicle_positions_1.head())
-
 vehicle_positions_1["vehicle_time"] = (
     pd.to_datetime(
         vehicle_positions_1["timestamp"],
@@ -93,6 +85,23 @@ vehicle_positions_1["vehicle_time"] = (
     )
     .dt.tz_convert("America/Chicago")
 )
+
+vehicle_positions_1 = vehicle_positions_1.drop_duplicates(
+    subset=[
+        "trip_id",
+        "vehicle_time",
+        "latitude",
+        "longitude"
+    ]
+).copy()
+
+# print("Scheduled trips:", len(trip_ids_1))
+# print(
+#     "GPS trips:",
+#     vehicle_positions_1["trip_id"].nunique()
+# )
+# print("GPS rows:", len(vehicle_positions_1))
+# print(vehicle_positions_1.head())
 
 test_trip_id = trip_ids_1[0]
 
@@ -114,15 +123,6 @@ test_trip = test_trip.sort_values("vehicle_time")
 #         ]
 #     ]
 # )
-
-vehicle_positions_1 = vehicle_positions_1.drop_duplicates(
-    subset=[
-        "trip_id",
-        "vehicle_time",
-        "latitude",
-        "longitude"
-    ]
-).copy()
 
 # print(test_trip.shape)
 
@@ -147,9 +147,6 @@ test_schedule = scheduled_data_1.loc[
 blair = test_schedule.loc[
     test_schedule["stop_name"] == "Blair"
 ].iloc[0]
-test_schedule["stop_name"] == "Blair"
-
-import numpy as np
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     R = 6371000
@@ -182,7 +179,68 @@ test_trip["distance_to_blair_m"] = haversine_distance(
     float(blair["stop_lat"]),
     float(blair["stop_lon"])
 )
-# print(vehicle_sample.columns.tolist())
+
+# print(
+#     test_trip[
+#         [
+#             "vehicle_time",
+#             "latitude",
+#             "longitude",
+#             "distance_to_blair_m"
+#         ]
+#     ]
+#     .sort_values("distance_to_blair_m")
+#     .head(20)
+# )
+
+near_blair = test_trip.loc[
+    test_trip["distance_to_blair_m"] <= 500
+].copy()
+
+near_blair = near_blair.sort_values("vehicle_time")
+
+# print(
+#     near_blair[
+#         [
+#             "vehicle_time",
+#             "distance_to_blair_m",
+#             "speed"
+#         ]
+#     ]
+# )
+
+inside_blair = test_trip.loc[
+    test_trip["distance_to_blair_m"] <= 60
+].copy()
+
+inside_blair = inside_blair.sort_values("vehicle_time")
+
+print(
+    inside_blair[
+        [
+            "vehicle_time",
+            "distance_to_blair_m",
+            "speed"
+        ]
+    ]
+)
+
+if inside_blair.empty:
+    estimated_actual_arrival = pd.NaT
+    print("No GPS point entered the 60 m geofence.")
+else:
+    estimated_actual_arrival = inside_blair.iloc[0]["vehicle_time"]
+    print("Estimated actual arrival:", estimated_actual_arrival)
+
+print(
+    near_blair[
+        [
+            "vehicle_time",
+            "distance_to_blair_m",
+            "speed"
+        ]
+    ]
+)
 # print(vehicle_sample)
 # print(vehicle_sample.dtypes)
 # vehicle_positions_1 = pd.read_parquet(vehicle_path_1)
