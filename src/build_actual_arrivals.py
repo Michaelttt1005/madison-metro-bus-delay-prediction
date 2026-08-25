@@ -241,6 +241,26 @@ print(
         ]
     ]
 )
+
+service_date = blair["service_date"]
+
+scheduled_arrival = pd.Timestamp(
+    f"{service_date[:4]}-{service_date[4:6]}-{service_date[6:]} {blair['arrival_time']}",
+    tz="America/Chicago"
+)
+
+if pd.isna(estimated_actual_arrival):
+    actual_delay_seconds = np.nan
+else:
+    actual_delay_seconds = (
+        estimated_actual_arrival - scheduled_arrival
+    ).total_seconds()
+
+print("Scheduled arrival:", scheduled_arrival)
+print("Estimated actual arrival:", estimated_actual_arrival)
+print("Actual delay seconds:", actual_delay_seconds)
+
+
 # print(vehicle_sample)
 # print(vehicle_sample.dtypes)
 # vehicle_positions_1 = pd.read_parquet(vehicle_path_1)
