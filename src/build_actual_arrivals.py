@@ -260,6 +260,40 @@ print("Scheduled arrival:", scheduled_arrival)
 print("Estimated actual arrival:", estimated_actual_arrival)
 print("Actual delay seconds:", actual_delay_seconds)
 
+def estimate_actual_arrival(
+    trip_positions,
+    stop_lat,
+    stop_lon,
+    geofence_m=60
+):
+    trip_positions = trip_positions.sort_values("vehicle_time").copy()
+
+    trip_positions["distance_to_stop_m"] = haversine_distance(
+        trip_positions["latitude"],
+        trip_positions["longitude"],
+        float(stop_lat),
+        float(stop_lon)
+    )
+
+    trip_positions["previous_distance_m"] = (
+        trip_positions["distance_to_stop_m"].shift(1)
+    )
+
+    entered_stop = trip_positions.loc[
+        (trip_positions["previous_distance_m"] > geofence_m)
+        & (trip_positions["distance_to_stop_m"] <= geofence_m)
+    ].copy()
+
+    if entered_stop.empty:
+        return pd.NaT
+
+    return entered_stop.iloc[0]["vehicle_time"]
+
+def build_scheduled_arrival(service_date, arrival_time):
+    return pd.Timestamp(
+        f"{service_date[:4]}-{service_date[4:6]}-{service_date[6:]} {arrival_time}",
+        tz="America/Chicago"
+    )
 
 # print(vehicle_sample)
 # print(vehicle_sample.dtypes)
