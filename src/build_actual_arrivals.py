@@ -295,6 +295,94 @@ def build_scheduled_arrival(service_date, arrival_time):
         tz="America/Chicago"
     )
 
+geofence_m = 60
+
+trip_positions_by_id = {
+    trip_id: trip_positions.sort_values("vehicle_time").copy()
+    for trip_id, trip_positions in vehicle_positions_1.groupby(
+        "trip_id",
+        sort=False
+    )
+}
+
+label_rows = []
+
+for _, schedule_row in scheduled_data_1.iterrows():
+    trip_id = schedule_row["trip_id"]
+
+    trip_positions = trip_positions_by_id.get(trip_id)
+
+    if trip_positions is None or trip_positions.empty:
+        estimated_actual_arrival = pd.NaT
+    else:
+        estimated_actual_arrival = estimate_actual_arrival(
+            trip_positions=trip_positions,
+            stop_lat=schedule_row["stop_lat"],
+            stop_lon=schedule_row["stop_lon"],
+            geofence_m=geofence_m,
+        )
+
+    scheduled_arrival = build_scheduled_arrival(
+        service_date=schedule_row["service_date"],
+        arrival_time=schedule_row["arrival_time"],
+    )
+
+    if pd.isna(estimated_actual_arrival):
+        actual_delay_seconds = np.nan
+    else:
+        actual_delay_seconds = (
+            estimated_actual_arrival - scheduled_arrival
+        ).total_seconds()
+
+    label_rows.append(
+        {
+            "service_date": schedule_row["service_date"],
+            "trip_id": trip_id,
+            "stop_id": schedule_row["stop_id"],
+            "stop_name": schedule_row["stop_name"],
+            "scheduled_arrival": scheduled_arrival,
+            "estimated_actual_arrival": estimated_actual_arrival,
+            "actual_delay_seconds": actual_delay_seconds,
+            "geofence_m": geofence_m,
+        }
+    )
+
+arrival_labels_1 = pd.DataFrame(label_rows)
+
+output_path = (
+    project
+    / "data"
+    / "interim"
+    / "arrival_labels_2026-08-10.csv"
+)
+
+arrival_labels_1.to_csv(
+    output_path,
+    index=False,
+)
+
+print("Label-table shape:", arrival_labels_1.shape)
+
+print(
+    "Labels with observed arrivals:",
+    arrival_labels_1["actual_delay_seconds"].notna().sum(),
+)
+
+print(
+    "Missing labels:",
+    arrival_labels_1["actual_delay_seconds"].isna().sum(),
+)
+
+print(
+    "Duplicate date-trip-stop keys:",
+    arrival_labels_1.duplicated(
+        ["service_date", "trip_id", "stop_id"]
+    ).sum(),
+)
+
+print(
+    arrival_labels_1["actual_delay_seconds"].describe()
+)
 # print(vehicle_sample)
 # print(vehicle_sample.dtypes)
 # vehicle_positions_1 = pd.read_parquet(vehicle_path_1)
