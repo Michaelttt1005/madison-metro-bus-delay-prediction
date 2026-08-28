@@ -383,6 +383,196 @@ print(
 print(
     arrival_labels_1["actual_delay_seconds"].describe()
 )
+
+def load_vehicle_positions_for_date(
+    service_date,
+    scheduled_for_date,
+):
+    file_date = (
+        f"{service_date[:4]}-"
+        f"{service_date[4:6]}-"
+        f"{service_date[6:]}"
+    )
+
+    vehicle_path = (
+        project
+        / "data"
+        / "raw"
+        / "vehicle_positions"
+        / f"{file_date}.parquet"
+    )
+
+    target_trips = (
+        scheduled_for_date[["trip_id"]]
+        .drop_duplicates()
+        .copy()
+    )
+
+    date_con = duckdb.connect()
+
+    date_con.register(
+        "target_trips",
+        target_trips,
+    )
+
+    vehicle_positions = date_con.execute(
+        """
+        SELECT
+            v.trip_id,
+            v.route_id,
+            v.vehicle_id,
+            v.latitude,
+            v.longitude,
+            v.speed,
+            v.current_stop_sequence,
+            v.stop_id,
+            v.current_status,
+            v.timestamp,
+            v.fetch_timestamp
+        FROM read_parquet(?) AS v
+        INNER JOIN target_trips AS t
+            ON v.trip_id = t.trip_id
+        WHERE v.route_id = 'A'
+        """,
+        [str(vehicle_path)],
+    ).fetchdf()
+
+    if vehicle_positions.empty:
+        return vehicle_positions
+
+    vehicle_positions["vehicle_time"] = (
+        pd.to_datetime(
+            vehicle_positions["timestamp"],
+            unit="s",
+            utc=True,
+        )
+        .dt.tz_convert("America/Chicago")
+    )
+
+    vehicle_positions = vehicle_positions.loc[
+        vehicle_positions["vehicle_time"]
+        .dt.strftime("%Y%m%d")
+        == service_date
+    ].copy()
+
+    vehicle_positions = vehicle_positions.drop_duplicates(
+        subset=[
+            "trip_id",
+            "vehicle_time",
+            "latitude",
+            "longitude",
+        ]
+    ).copy()
+
+    return vehicle_positions
+
+def build_labels_for_date(service_date):
+    scheduled_for_date = scheduled_data.loc[
+        scheduled_data["service_date"] == service_date
+    ].copy()
+
+    vehicle_positions = load_vehicle_positions_for_date(
+        service_date,
+        scheduled_for_date,
+    )
+
+    trip_positions_by_id = {
+        trip_id: trip_positions.sort_values(
+            "vehicle_time"
+        ).copy()
+        for trip_id, trip_positions in vehicle_positions.groupby(
+            "trip_id",
+            sort=False,
+        )
+    }
+
+    label_rows = []
+
+    for _, schedule_row in scheduled_for_date.iterrows():
+        trip_id = schedule_row["trip_id"]
+
+        trip_positions = trip_positions_by_id.get(trip_id)
+
+        if trip_positions is None or trip_positions.empty:
+            estimated_actual_arrival = pd.NaT
+        else:
+            estimated_actual_arrival = estimate_actual_arrival(
+                trip_positions=trip_positions,
+                stop_lat=schedule_row["stop_lat"],
+                stop_lon=schedule_row["stop_lon"],
+                geofence_m=60,
+            )
+
+        scheduled_arrival = build_scheduled_arrival(
+            service_date=schedule_row["service_date"],
+            arrival_time=schedule_row["arrival_time"],
+        )
+
+        if pd.isna(estimated_actual_arrival):
+            actual_delay_seconds = np.nan
+        else:
+            actual_delay_seconds = (
+                estimated_actual_arrival - scheduled_arrival
+            ).total_seconds()
+
+        label_rows.append(
+            {
+                "service_date": service_date,
+                "trip_id": trip_id,
+                "stop_id": schedule_row["stop_id"],
+                "stop_name": schedule_row["stop_name"],
+                "scheduled_arrival": scheduled_arrival,
+                "estimated_actual_arrival": estimated_actual_arrival,
+                "actual_delay_seconds": actual_delay_seconds,
+                "geofence_m": 60,
+            }
+        )
+
+    return pd.DataFrame(label_rows)
+
+service_dates = [
+    "20260810",
+    "20260811",
+]
+
+label_tables = []
+
+for service_date in service_dates:
+    labels_for_date = build_labels_for_date(service_date)
+    label_tables.append(labels_for_date)
+
+arrival_labels = pd.concat(
+    label_tables,
+    ignore_index=True,
+)
+
+output_path = (
+    project
+    / "data"
+    / "interim"
+    / "arrival_labels_2026-08-10_to_2026-08-11.csv"
+)
+
+arrival_labels.to_csv(
+    output_path,
+    index=False,
+)
+
+print("Combined label-table shape:", arrival_labels.shape)
+
+print(
+    arrival_labels.groupby(
+        ["service_date", "stop_name"]
+    )["actual_delay_seconds"]
+    .agg(["count", "size", "mean", "median"])
+)
+
+print(
+    "Duplicate keys:",
+    arrival_labels.duplicated(
+        ["service_date", "trip_id", "stop_id"]
+    ).sum(),
+)
 # print(vehicle_sample)
 # print(vehicle_sample.dtypes)
 # vehicle_positions_1 = pd.read_parquet(vehicle_path_1)
