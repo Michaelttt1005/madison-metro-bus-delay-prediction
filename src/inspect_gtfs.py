@@ -154,15 +154,15 @@ scheduled_data = pd.concat(scheduled_tables, ignore_index=True)
 output_path = project / "data" / "interim" / "scheduled_data.csv"
 scheduled_data.to_csv(output_path, index=False)
 
-print("Scheduled-table shape:", scheduled_data.shape)
-print("Covered service dates:", scheduled_data["service_date"].nunique())
-print(
-    "Static GTFS versions:",
-    scheduled_data["static_gtfs_version"].nunique(),
-)
-print(
-    "Duplicate date-trip-stop keys:",
-    scheduled_data.duplicated(
-        ["service_date", "trip_id", "stop_id"]
-    ).sum(),
-)
+# print("Scheduled-table shape:", scheduled_data.shape)
+# print("Covered service dates:", scheduled_data["service_date"].nunique())
+# print(
+#     "Static GTFS versions:",
+#     scheduled_data["static_gtfs_version"].nunique(),
+# )
+# print(
+#     "Duplicate date-trip-stop keys:",
+#     scheduled_data.duplicated(
+#         ["service_date", "trip_id", "stop_id"]
+#     ).sum(),
+# )

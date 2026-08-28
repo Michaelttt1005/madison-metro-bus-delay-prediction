@@ -256,9 +256,9 @@ else:
         estimated_actual_arrival - scheduled_arrival
     ).total_seconds()
 
-print("Scheduled arrival:", scheduled_arrival)
-print("Estimated actual arrival:", estimated_actual_arrival)
-print("Actual delay seconds:", actual_delay_seconds)
+# print("Scheduled arrival:", scheduled_arrival)
+# print("Estimated actual arrival:", estimated_actual_arrival)
+# print("Actual delay seconds:", actual_delay_seconds)
 
 def estimate_actual_arrival(
     trip_positions,
