@@ -454,7 +454,7 @@ def load_vehicle_positions_for_date(
         .dt.strftime("%Y%m%d")
         == service_date
     ].copy()
-    
+
     vehicle_positions = vehicle_positions.drop_duplicates(
         subset=[
             "trip_id",
