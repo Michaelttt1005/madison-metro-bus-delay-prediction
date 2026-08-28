@@ -1,130 +1,88 @@
 # Research definition: Madison Metro Route A arrival-delay prediction
 
-## 1. Research question
+## Research question
 
-For eastbound Metro Rapid Route A trips, can data available **ten minutes before a scheduled arrival** improve the prediction of arrival deviation at Capitol Square Eastbound beyond schedule-only, historical, and agency real-time baselines?
+For eastbound Madison Metro Rapid Route A trips at Shorewood, Blair, and Eau Claire, can calendar and weather information available **ten minutes before a scheduled arrival** improve predicted arrival deviation beyond transparent historical-delay baselines?
 
-## 2. Scope for the first study
+## Scope of the current workflow
 
-| Item | Fixed first-study choice |
-|---|---|
+| Item | Current choice |
+| --- | --- |
 | Agency | Madison Metro Transit |
-| Route | Rapid Route A (`route_id` confirmed during intake) |
-| Direction | Eastbound (`direction_id` confirmed against static GTFS) |
-| Target stop | Capitol Square Eastbound (`stop_id` and `stop_sequence` confirmed during intake) |
+| Route | Rapid Route A (`route_id = A`) |
+| Direction and trip subset | Junction eastbound trips |
+| Target stops | Shorewood, Blair, and Eau Claire |
+| Service dates | 2026-01-10 through 2026-08-27, excluding unavailable archive dates |
 | Prediction horizon | 10 minutes before scheduled arrival |
-| Unit of analysis | One scheduled Route A trip arriving at the target stop on one service date |
-| Model type | Regression: predicted early/late arrival in seconds |
+| Unit of analysis | One scheduled trip-stop arrival on one service date |
+| Prediction target | Arrival deviation in seconds |
+| Current feature set | Calendar/time, stop identity, and hourly weather; no GPS input features |
 
-The study intentionally excludes additional routes, other stops, a dashboard, and event-calendar features until the first analysis is complete.
+The first version deliberately stays small. GPS observations are used to construct labels, but no real-time vehicle position is used as a model feature yet.
 
-## 3. Prediction time and allowed information
+## Prediction-time rule
 
-For a scheduled trip-stop arrival at `scheduled_arrival_time`, define the model issue time as:
-
-```text
-T = scheduled_arrival_time − 10 minutes
-```
-
-Every feature used for that row must have a timestamp at or before `T`. This rule includes Metro GTFS-Realtime records, weather observations, and every derived feature. A record created after `T` is future information and must not be used.
-
-## 4. Outcome / label
+For a scheduled trip-stop arrival at `scheduled_arrival`, the issue time is:
 
 ```text
-actual_delay_seconds = estimated_actual_arrival − scheduled_arrival_time
+prediction_time = scheduled_arrival - 10 minutes
 ```
 
-- Positive value: bus arrived late.
-- Negative value: bus arrived early.
-- Zero: bus arrived on schedule.
+Every model feature must be known at or before `prediction_time`. The no-GPS v1 table uses only schedule-derived time fields and weather values aligned to that time. Future vehicle-position features will require a timestamped snapshot at or before this cutoff.
 
-`estimated_actual_arrival` is not a GTFS-RT prediction. It is estimated from archived **Vehicle Positions**: the first credible time a vehicle on the matching trip enters a defined geofence around the target stop while approaching in the expected route direction.
-
-### Label-quality rules to decide during data audit
-
-- Test a geofence radius of 50 m, 60 m, and 75 m.
-- Require nearby GPS observations before and after the inferred arrival; gaps over 90 seconds are low confidence.
-- Flag impossible or extreme values for review rather than silently treating them as valid.
-- Randomly audit at least 20 labels by plotting GPS distance-to-stop against time.
-- Retain an explicit `label_confidence` or `label_status` column.
-
-The report must state that these are GPS-derived arrival estimates, not agency-certified actual arrivals.
-
-## 5. Candidate feature sets
-
-### Calendar and schedule features
-
-- scheduled hour and minute
-- weekday
-- weekend flag
-- public-holiday flag
-- scheduled travel time from the preceding stop
-
-### Weather features
-
-- temperature
-- precipitation
-- wind speed
-
-### Real-time features, only when timestamped at or before T
-
-- latest known vehicle latitude and longitude
-- distance from the target stop
-- vehicle speed, when available
-- Metro’s most recent predicted arrival deviation, when available
-
-No “nearby event” feature belongs in version 1. It needs a separate, documented definition and source-quality review.
-
-## 6. Required comparisons
-
-The learned model must be compared with all applicable baselines:
-
-| Method | Prediction |
-|---|---|
-| Schedule baseline | 0 seconds of delay |
-| Historical baseline | Median training-set delay for the relevant weekday × hour bucket |
-| Agency baseline | Most recent Metro GTFS-RT prediction available at or before `T` |
-| Learned model | A scikit-learn regression model using only allowed features |
-
-The first learned model should be `HistGradientBoostingRegressor`; deep learning is explicitly out of scope.
-
-## 7. Evaluation protocol
-
-Split by time, never by randomly shuffled rows:
+## Outcome and label construction
 
 ```text
-Training period   → earliest contiguous dates
-Validation period → following contiguous dates
-Test period       → final held-out contiguous dates
+actual_delay_seconds = estimated_actual_arrival - scheduled_arrival
 ```
 
-Primary metrics:
+`estimated_actual_arrival` is a GPS-derived proxy, not an agency-certified door-open timestamp. For each scheduled trip and stop, the label builder detects the vehicle's first entry from outside to inside a 60 m geofence around the stop. Positive values mean late arrival; negative values mean early arrival.
 
-- Mean Absolute Error (MAE), reported in minutes
-- Median Absolute Error, reported in minutes
-- Percentage of predictions within ±2 minutes
+The completed label audit keeps raw labels unchanged, stores observed delays above 30 minutes in a separate exceptions file, and excludes those extreme observations from the clean modeling table. Missing GPS labels are not treated as zero delay.
 
-Diagnostics:
+## Data and feature pipeline
 
-- Mean signed error (systematically early vs. late predictions)
-- Results by weekday/weekend
-- Results by rainfall/no rainfall, if enough cases exist
-- Results with and without an agency real-time prediction
-- Number of valid examples at every filtering step
+1. Match each service date to the corresponding archived static GTFS feed version.
+2. Extract Route A / Junction scheduled arrivals for the three target stops.
+3. Join matching archived Vehicle Positions by trip identifier and filter observations back to the service date.
+4. Construct 60 m geofence arrival labels and audit extreme observed delays.
+5. Create no-GPS features: month, weekday, hour, minute, weekend flag, stop identity, temperature, precipitation, rain, snowfall, wind speed, and weather category.
+6. Split rows chronologically by service date: 70% train, 15% validation, 15% held-out test.
 
-## 8. Data sources and provenance
+The current split contains 18,885 training rows, 4,023 validation rows, and 4,546 test rows. The test split remains locked during model development.
+
+## Models and validation results
+
+All baseline statistics and preprocessing parameters are fit on the training period only.
+
+| Model | Validation MAE | Within +/- 2 minutes |
+| --- | ---: | ---: |
+| Global median delay | 2.366 min | 54.86% |
+| Stop median delay | 2.277 min | 57.17% |
+| Stop + hour median delay | 2.183 min | 59.71% |
+| PyTorch MLP, no GPS | **2.074 min** | **62.49%** |
+
+The PyTorch MLP accepts 26 processed features, uses two hidden layers (64 and 32 units), ReLU activations, L1 loss, AdamW optimization, and validation-based early stopping. Its best validation checkpoint occurred at epoch 4.
+
+## Evaluation protocol
+
+Rows are never randomly shuffled into train, validation, and test. The chronological split simulates the realistic situation in which a model trained on earlier service dates is used on later dates.
+
+The primary metric is mean absolute error (MAE) in seconds and minutes. The secondary metric is the percentage of predictions within +/- 120 seconds. Model selection uses validation performance only; the held-out test period is reserved for one final evaluation after the configuration is fixed.
+
+## Planned extensions
+
+- Diagnose validation errors by stop, hour, and weather condition.
+- Tune model capacity and learning rate on the validation period only.
+- Add leakage-safe Vehicle Positions snapshots that occurred at or before prediction time.
+- Evaluate one selected final model on the held-out test period and write a concise result report.
+
+## Data sources and provenance
 
 | Data | Purpose | Local destination |
-|---|---|---|
-| Metro static GTFS | Planned trips, stops, stop times, calendar | `data/raw/gtfs/` |
-| Archived GTFS-RT Vehicle Positions | GPS-derived arrival labels and real-time features | `data/raw/vehicle_positions/` |
-| Archived GTFS-RT Trip Updates | Agency prediction baseline | `data/raw/trip_updates/` |
-| Historical weather | Weather features | `data/raw/weather/` |
-| Holiday calendar | Calendar feature | Derived in analysis; source/version documented |
+| --- | --- | --- |
+| Metro static GTFS | Planned trips, stops, stop times, and service calendar | `data/raw/gtfs/` |
+| Archived GTFS-RT Vehicle Positions | GPS-derived arrival labels | `data/raw/vehicle_positions/` |
+| Open-Meteo historical weather | Hourly weather features | `data/raw/weather/` |
 
-For each input, record URL, date range, fetch date, static GTFS feed version, and any manual decisions in a future `data/manifest.csv`.
-
-## 9. Success criterion
-
-The project is successful if it produces a reproducible, leakage-free comparison and an honest error analysis. Beating Metro’s own prediction is **not** required. A valid result may show that the agency forecast is stronger, or that added features help only when the agency prediction is missing.
-
+Raw data, local checksum manifests, model checkpoints, and generated modeling tables are excluded from Git. Metro data should retain the attribution: "Data provided under license granted by City of Madison, WI, Metro Transit."
