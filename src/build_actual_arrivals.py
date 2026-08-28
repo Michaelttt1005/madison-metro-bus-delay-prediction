@@ -215,15 +215,15 @@ inside_blair = test_trip.loc[
 
 inside_blair = inside_blair.sort_values("vehicle_time")
 
-print(
-    inside_blair[
-        [
-            "vehicle_time",
-            "distance_to_blair_m",
-            "speed"
-        ]
-    ]
-)
+# print(
+#     inside_blair[
+#         [
+#             "vehicle_time",
+#             "distance_to_blair_m",
+#             "speed"
+#         ]
+#     ]
+# )
 
 if inside_blair.empty:
     estimated_actual_arrival = pd.NaT
@@ -232,15 +232,15 @@ else:
     estimated_actual_arrival = inside_blair.iloc[0]["vehicle_time"]
     print("Estimated actual arrival:", estimated_actual_arrival)
 
-print(
-    near_blair[
-        [
-            "vehicle_time",
-            "distance_to_blair_m",
-            "speed"
-        ]
-    ]
-)
+# print(
+#     near_blair[
+#         [
+#             "vehicle_time",
+#             "distance_to_blair_m",
+#             "speed"
+#         ]
+#     ]
+# )
 
 service_date = blair["service_date"]
 
@@ -361,28 +361,28 @@ arrival_labels_1.to_csv(
     index=False,
 )
 
-print("Label-table shape:", arrival_labels_1.shape)
+# print("Label-table shape:", arrival_labels_1.shape)
 
-print(
-    "Labels with observed arrivals:",
-    arrival_labels_1["actual_delay_seconds"].notna().sum(),
-)
+# print(
+#     "Labels with observed arrivals:",
+#     arrival_labels_1["actual_delay_seconds"].notna().sum(),
+# )
 
-print(
-    "Missing labels:",
-    arrival_labels_1["actual_delay_seconds"].isna().sum(),
-)
+# print(
+#     "Missing labels:",
+#     arrival_labels_1["actual_delay_seconds"].isna().sum(),
+# )
 
-print(
-    "Duplicate date-trip-stop keys:",
-    arrival_labels_1.duplicated(
-        ["service_date", "trip_id", "stop_id"]
-    ).sum(),
-)
+# print(
+#     "Duplicate date-trip-stop keys:",
+#     arrival_labels_1.duplicated(
+#         ["service_date", "trip_id", "stop_id"]
+#     ).sum(),
+# )
 
-print(
-    arrival_labels_1["actual_delay_seconds"].describe()
-)
+# print(
+#     arrival_labels_1["actual_delay_seconds"].describe()
+# )
 
 def load_vehicle_positions_for_date(
     service_date,
@@ -558,21 +558,21 @@ arrival_labels.to_csv(
     index=False,
 )
 
-print("Combined label-table shape:", arrival_labels.shape)
+# print("Combined label-table shape:", arrival_labels.shape)
 
-print(
-    arrival_labels.groupby(
-        ["service_date", "stop_name"]
-    )["actual_delay_seconds"]
-    .agg(["count", "size", "mean", "median"])
-)
+# print(
+#     arrival_labels.groupby(
+#         ["service_date", "stop_name"]
+#     )["actual_delay_seconds"]
+#     .agg(["count", "size", "mean", "median"])
+# )
 
-print(
-    "Duplicate keys:",
-    arrival_labels.duplicated(
-        ["service_date", "trip_id", "stop_id"]
-    ).sum(),
-)
+# print(
+#     "Duplicate keys:",
+#     arrival_labels.duplicated(
+#         ["service_date", "trip_id", "stop_id"]
+#     ).sum(),
+# )
 # print(vehicle_sample)
 # print(vehicle_sample.dtypes)
 # vehicle_positions_1 = pd.read_parquet(vehicle_path_1)

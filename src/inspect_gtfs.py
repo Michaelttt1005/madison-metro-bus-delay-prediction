@@ -1,146 +1,168 @@
 from pathlib import Path
 from zipfile import ZipFile
+
 import pandas as pd
 
+
 project = Path(r"D:\Michael\Interesting Project\Madison Bus Delay Prediction")
-gtfs_zip = project / r"data/raw/gtfs/mmt_gtfs_2026-05-10_to_2026-08-15.zip"
+gtfs_dir = project / "data" / "raw" / "gtfs"
+vehicle_positions_dir = project / "data" / "raw" / "vehicle_positions"
 
-#route id
-with ZipFile(gtfs_zip) as archive:
-    with archive.open("routes.txt") as file:
-        routes = pd.read_csv(file, dtype = "string")
+target_stop_names = ["Shorewood", "Blair", "Eau Claire"]
 
-# print(routes.columns.tolist())
-# print(routes.head())
-# print(routes.shape)
-# print(routes.dtypes)
 
-# routes.info(
-#     verbose=None,
-#     show_counts=None,
-#     memory_usage=None,
-# )
+def read_gtfs_table(gtfs_zip, filename):
+    """Read one CSV table from an immutable GTFS zip as strings."""
+    with ZipFile(gtfs_zip) as archive:
+        with archive.open(filename) as file:
+            return pd.read_csv(file, dtype="string")
 
-route_names = routes["route_short_name"]
 
-route_A = routes.loc[routes["route_short_name"] == "A"].copy()
-route_A_id = route_A.iloc[0]["route_id"]
+def build_schedule_for_static_feed(gtfs_zip, service_dates):
+    """Create Route A / JUNCTION planned arrivals for one GTFS service period."""
+    routes = read_gtfs_table(gtfs_zip, "routes.txt")
+    route_a = routes.loc[routes["route_short_name"] == "A"].copy()
 
-#trip id with simplized colomns
-with ZipFile(gtfs_zip) as archive:
-    with archive.open("trips.txt") as file:
-        trips = pd.read_csv(file, dtype = "string")
-Atrips = trips.loc[trips["route_id"] == route_A_id].copy()
+    if route_a.empty:
+        raise ValueError(f"Route A is missing from {gtfs_zip.name}.")
 
-junctions = Atrips.loc[Atrips["trip_headsign"] == "JUNCTION"].copy()
-trip_ids = junctions["trip_id"].tolist()
-junctions = junctions[[
-        "trip_id",
-        "service_id"
-    ]].copy()
+    route_a_id = route_a.iloc[0]["route_id"]
+    trips = read_gtfs_table(gtfs_zip, "trips.txt")
+    a_trips = trips.loc[trips["route_id"] == route_a_id].copy()
+    junctions = a_trips.loc[
+        a_trips["trip_headsign"] == "JUNCTION",
+        ["trip_id", "service_id"],
+    ].copy()
 
-#stop information with simplized colomns
-with ZipFile(gtfs_zip) as archive:
-    with archive.open("stop_times.txt") as file:
-        stop_times = pd.read_csv(file, dtype = "string")
-# print(stop_times.columns.tolist())
-a_stop_times = stop_times.loc[stop_times["trip_id"].isin(trip_ids)].copy()
-a_stop_times = a_stop_times[[
-        "trip_id",
-        "arrival_time",
-        "stop_id",
-        "stop_sequence",
-    ]].copy()
+    stop_times = read_gtfs_table(gtfs_zip, "stop_times.txt")
+    a_stop_times = stop_times.loc[
+        stop_times["trip_id"].isin(junctions["trip_id"]),
+        ["trip_id", "arrival_time", "stop_id", "stop_sequence"],
+    ].copy()
 
-#station information with simplized colomns
-with ZipFile(gtfs_zip) as archive:
-    with archive.open("stops.txt") as file:
-        stops = pd.read_csv(file, dtype = "string")
-a_stops = stops.loc[stops["stop_id"].isin(a_stop_times["stop_id"])]
-# print(a_stops.columns.tolist())
-a_stops = a_stops[[
-        "stop_id",
-        "stop_name",
-        "stop_lat",
-        "stop_lon",
-        "cardinal_direction"
-]].copy()
+    stops = read_gtfs_table(gtfs_zip, "stops.txt")
+    a_stops = stops.loc[
+        stops["stop_id"].isin(a_stop_times["stop_id"]),
+        [
+            "stop_id",
+            "stop_name",
+            "stop_lat",
+            "stop_lon",
+            "cardinal_direction",
+        ],
+    ].copy()
 
-junction_stop_data = a_stop_times.merge(a_stops, on="stop_id", how="left")
-stops_count = junction_stop_data.groupby(["stop_id", "stop_name"])["trip_id"].nunique().reset_index(name="trip_count").sort_values("trip_count", ascending=False)
-# print(stops_count.head(20))
-target_stops = stops_count.loc[stops_count["stop_name"].isin(["Shorewood", "Blair", "Eau Claire"])].copy()
-# print(target_stops.head(20))
+    junction_stop_data = a_stop_times.merge(a_stops, on="stop_id", how="left")
+    target_stop_data = junction_stop_data.loc[
+        junction_stop_data["stop_name"].isin(target_stop_names)
+    ].copy()
 
-with ZipFile(gtfs_zip) as archive:
-    with archive.open("calendar.txt") as file:
-        calendar = pd.read_csv(file, dtype = "string")
-with ZipFile(gtfs_zip) as archive:
-    with archive.open("calendar_dates.txt") as file:
-        calendar_dates = pd.read_csv(file, dtype = "string")
+    found_stop_names = set(target_stop_data["stop_name"].dropna())
+    missing_stop_names = set(target_stop_names) - found_stop_names
+    if missing_stop_names:
+        raise ValueError(
+            f"{gtfs_zip.name} is missing target stops: {sorted(missing_stop_names)}"
+        )
 
-# print(calendar_dates.columns.tolist())
-# print(calendar_dates.head())
-# print(calendar["service_id"].value_counts())
-junction_calendar = calendar.loc[calendar["service_id"].isin(junctions["service_id"])].copy()
-date_1 = "20260810"
-day_name_1 = pd.Timestamp(date_1).day_name().lower()
-active_services_1 = junction_calendar.loc[(junction_calendar[day_name_1] == "1") & (date_1 >= junction_calendar["start_date"]) & (date_1 <= junction_calendar["end_date"])].copy()
-date_exceptions_1 = calendar_dates.loc[calendar_dates["date"] == date_1].copy()
-added_services_id_1 = date_exceptions_1.loc[date_exceptions_1["exception_type"] == "1", "service_id"].tolist()
-removed_services_id_1 = date_exceptions_1.loc[date_exceptions_1["exception_type"] == "2", "service_id"].tolist()
-active_services_id_1 = active_services_1["service_id"].tolist()
-final_active_services_id_1 = list(set(active_services_id_1 + added_services_id_1) - set(removed_services_id_1))
-active_junctions_1 = junctions.loc[junctions["service_id"].isin(final_active_services_id_1)].copy()
+    calendar = read_gtfs_table(gtfs_zip, "calendar.txt")
+    calendar_dates = read_gtfs_table(gtfs_zip, "calendar_dates.txt")
+    feed_info = read_gtfs_table(gtfs_zip, "feed_info.txt").iloc[0]
+    feed_version = feed_info["feed_version"]
 
-date_2 = "20260811"
-day_name_2 = pd.Timestamp(date_2).day_name().lower()
-active_services_2 = junction_calendar.loc[(junction_calendar[day_name_2] == "1") & (date_2 >= junction_calendar["start_date"]) & (date_2 <= junction_calendar["end_date"])].copy()
-date_exceptions_2 = calendar_dates.loc[calendar_dates["date"] == date_2].copy()
-added_services_id_2 = date_exceptions_2.loc[date_exceptions_2["exception_type"] == "1", "service_id"].tolist()
-removed_services_id_2 = date_exceptions_2.loc[date_exceptions_2["exception_type"] == "2", "service_id"].tolist()
-active_services_id_2 = active_services_2["service_id"].tolist()
-final_active_services_id_2 = list(set(active_services_id_2 + added_services_id_2) - set(removed_services_id_2))
-active_junctions_2 = junctions.loc[junctions["service_id"].isin(final_active_services_id_2)].copy()
+    junction_calendar = calendar.loc[
+        calendar["service_id"].isin(junctions["service_id"])
+    ].copy()
 
-target_stop_ids = target_stops["stop_id"].tolist()
-target_stop_data = junction_stop_data.loc[junction_stop_data["stop_id"].isin(target_stop_ids)].copy()
+    scheduled_tables = []
 
-scheduled_data1 = target_stop_data.loc[target_stop_data["trip_id"].isin(active_junctions_1["trip_id"])].copy()
-scheduled_data1["service_date"] = date_1
+    for service_date in service_dates:
+        day_name = pd.Timestamp(service_date).day_name().lower()
 
-scheduled_data2 = target_stop_data.loc[target_stop_data["trip_id"].isin(active_junctions_2["trip_id"])].copy()
-scheduled_data2["service_date"] = date_2
+        active_services = junction_calendar.loc[
+            (junction_calendar[day_name] == "1")
+            & (service_date >= junction_calendar["start_date"])
+            & (service_date <= junction_calendar["end_date"])
+        ].copy()
 
-scheduled_data = pd.concat([scheduled_data1, scheduled_data2], ignore_index=True)
+        date_exceptions = calendar_dates.loc[
+            calendar_dates["date"] == service_date
+        ].copy()
+
+        added_service_ids = date_exceptions.loc[
+            date_exceptions["exception_type"] == "1",
+            "service_id",
+        ].tolist()
+
+        removed_service_ids = date_exceptions.loc[
+            date_exceptions["exception_type"] == "2",
+            "service_id",
+        ].tolist()
+
+        active_service_ids = active_services["service_id"].tolist()
+        final_active_service_ids = list(
+            set(active_service_ids + added_service_ids)
+            - set(removed_service_ids)
+        )
+
+        active_junctions = junctions.loc[
+            junctions["service_id"].isin(final_active_service_ids)
+        ].copy()
+
+        scheduled_for_date = target_stop_data.loc[
+            target_stop_data["trip_id"].isin(active_junctions["trip_id"])
+        ].copy()
+
+        scheduled_for_date["service_date"] = service_date
+        scheduled_for_date["static_gtfs_file"] = gtfs_zip.name
+        scheduled_for_date["static_gtfs_version"] = feed_version
+        scheduled_tables.append(scheduled_for_date)
+
+    return pd.concat(scheduled_tables, ignore_index=True)
+
+
+service_dates = sorted(
+    vehicle_path.stem.replace("-", "")
+    for vehicle_path in vehicle_positions_dir.glob("*.parquet")
+)
+
+static_gtfs_files = sorted(gtfs_dir.glob("mmt_gtfs_*.zip"))
+if not static_gtfs_files:
+    raise FileNotFoundError("No archived GTFS zip files were found.")
+
+scheduled_tables = []
+
+for gtfs_zip in static_gtfs_files:
+    feed_info = read_gtfs_table(gtfs_zip, "feed_info.txt").iloc[0]
+    feed_start_date = feed_info["feed_start_date"]
+    feed_end_date = feed_info["feed_end_date"]
+
+    dates_for_feed = [
+        service_date
+        for service_date in service_dates
+        if feed_start_date <= service_date <= feed_end_date
+    ]
+
+    if not dates_for_feed:
+        continue
+
+    scheduled_tables.append(
+        build_schedule_for_static_feed(gtfs_zip, dates_for_feed)
+    )
+
+scheduled_data = pd.concat(scheduled_tables, ignore_index=True)
 
 output_path = project / "data" / "interim" / "scheduled_data.csv"
+scheduled_data.to_csv(output_path, index=False)
 
-scheduled_data.to_csv(
-    output_path,
-    index=False
+print("Scheduled-table shape:", scheduled_data.shape)
+print("Covered service dates:", scheduled_data["service_date"].nunique())
+print(
+    "Static GTFS versions:",
+    scheduled_data["static_gtfs_version"].nunique(),
 )
-# print(
-#     scheduled_data[
-#         [
-#             "service_date",
-#             "trip_id",
-#             "stop_id",
-#             "stop_name",
-#             "arrival_time",
-#             "stop_sequence"
-#         ]
-#     ].head(30)
-# )
-
-# print(scheduled_data.shape)
-# print(junctions["service_id"].value_counts())
-# print(calendar.columns.tolist())
-# print(calendar.head())
-# print(calendar.shape)
-
-# print(calendar_dates.columns.tolist())
-# print(calendar_dates.head())
-# print(calendar_dates.shape)
-# print(calendar_dates.sort_values("date").head(20))
-
+print(
+    "Duplicate date-trip-stop keys:",
+    scheduled_data.duplicated(
+        ["service_date", "trip_id", "stop_id"]
+    ).sum(),
+)
