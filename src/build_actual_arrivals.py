@@ -530,10 +530,15 @@ def build_labels_for_date(service_date):
 
     return pd.DataFrame(label_rows)
 
-service_dates = [
-    "20260810",
-    "20260811",
-]
+service_dates = (
+    scheduled_data["service_date"]
+    .drop_duplicates()
+    .sort_values()
+    .tolist()
+)
+
+if not service_dates:
+    raise ValueError("scheduled_data contains no service dates.")
 
 label_tables = []
 
@@ -550,7 +555,10 @@ output_path = (
     project
     / "data"
     / "interim"
-    / "arrival_labels_2026-08-10_to_2026-08-11.csv"
+    / (
+        f"arrival_labels_{service_dates[0]}"
+        f"_to_{service_dates[-1]}.csv"
+    )
 )
 
 arrival_labels.to_csv(
