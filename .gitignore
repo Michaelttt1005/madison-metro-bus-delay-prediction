@@ -22,9 +22,9 @@ data/manifest.csv
 # Generated analysis outputs
 reports/figures/*
 !reports/figures/.gitkeep
+!reports/figures/pytorch_validation_learning_curve.png
 
 # Local secrets and editor state
 .env
 .env.*
 .vscode/
-
