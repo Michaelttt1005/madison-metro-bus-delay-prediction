@@ -29,6 +29,12 @@ The first no-GPS modeling workflow is complete locally:
 
 The MLP used 26 features: normalized calendar/weather values plus one-hot stop and weather-condition categories. It used AdamW optimization, L1 loss, and validation-based early stopping; the best validation epoch was 4. The final test period has deliberately not been used yet.
 
+### Validation diagnostics
+
+The diagnostic workflow aligns the MLP and baseline predictions by service date, trip, and stop before comparing errors overall, by stop, and by prediction hour. The MLP reduced validation MAE by **6.53 seconds** overall. It improved all three target stops, with the largest improvements at Shorewood (9.62 seconds) and Eau Claire (9.60 seconds). The largest hourly gain occurred at 8:00: MAE improved by 23.27 seconds and the within-two-minute rate increased from 54.95% to 73.04%.
+
+![Validation learning curve](reports/figures/pytorch_validation_learning_curve.png)
+
 ## Project layout
 
 ```text
@@ -77,12 +83,12 @@ python src\build_baseline_features.py
 python src\create_time_splits.py
 python src\evaluate_baselines.py
 python src\train_pytorch_mlp.py
+python src\diagnose_pytorch_validation.py
 ```
 
 ## Next steps
 
-- Diagnose validation errors by stop, time of day, and weather condition.
-- Tune the no-GPS MLP using the validation period only.
+- Use the validation diagnostics to tune the no-GPS MLP using the validation period only.
 - Add leakage-safe real-time vehicle-position snapshot features.
 - Select one final configuration, evaluate it once on the held-out test period, and publish a concise results report.
 

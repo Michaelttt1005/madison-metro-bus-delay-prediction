@@ -64,6 +64,12 @@ All baseline statistics and preprocessing parameters are fit on the training per
 
 The PyTorch MLP accepts 26 processed features, uses two hidden layers (64 and 32 units), ReLU activations, L1 loss, AdamW optimization, and validation-based early stopping. Its best validation checkpoint occurred at epoch 4.
 
+## Validation diagnostics
+
+The diagnostic script merges baseline and MLP validation predictions on `service_date`, `trip_id`, and `stop_id`, then writes overall, by-stop, by-hour, and worst-case outputs. The MLP reduced overall validation MAE by 6.53 seconds. It improved MAE at every target stop: Shorewood by 9.62 seconds, Eau Claire by 9.60 seconds, and Blair by 1.13 seconds.
+
+At 8:00, the MLP produced the largest observed hourly improvement: MAE fell by 23.27 seconds and the within-two-minute rate increased from 54.95% to 73.04%. These are diagnostic observations from the validation set, not final held-out-test results.
+
 ## Evaluation protocol
 
 Rows are never randomly shuffled into train, validation, and test. The chronological split simulates the realistic situation in which a model trained on earlier service dates is used on later dates.
@@ -72,8 +78,7 @@ The primary metric is mean absolute error (MAE) in seconds and minutes. The seco
 
 ## Planned extensions
 
-- Diagnose validation errors by stop, hour, and weather condition.
-- Tune model capacity and learning rate on the validation period only.
+- Use the completed validation diagnostics to tune model capacity and learning rate on the validation period only.
 - Add leakage-safe Vehicle Positions snapshots that occurred at or before prediction time.
 - Evaluate one selected final model on the held-out test period and write a concise result report.
 
